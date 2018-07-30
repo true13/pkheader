@@ -44,24 +44,23 @@ int main(int argc, char* argv[]) {
     int ismac;	
     int iphdl;
     int tphdl;
-    int dataoff;
+    int datalen;
     if (res == 0) continue;
     if (res == -1 || res == -2) break;
     ismac = printMACaddr(packet);
     if(ismac == 1) {
     	packet = packet + 14;
     	iphdl = printIPaddr(packet);
-	dataoff = iph->ip_len;
-	dataoff = ntohs(dataoff);
-	dataoff -= iphdl*4;
-	printf("%d", dataoff);
+	datalen = iph->ip_len;
+	datalen = ntohs(datalen);
+	datalen -= iphdl*4;
 	if(iphdl != 0) {
 		packet += iphdl*4;
 		tphdl = printTCPport(packet);
-		dataoff -= tphdl;
-		printf("%02x\n", dataoff);
-		if(dataoff > 0) {
-			packet += dataoff;
+		datalen -= tphdl*4;
+		printf("%02x %02x\n", tphdl, datalen);
+		if(datalen > 0) {
+			packet += tphdl*4;
 			printf("DATA ");
 			for(i=0; i<15; i++)
 			printf("%02x ", packet[i]);
@@ -109,6 +108,5 @@ int printTCPport(const u_char* packet) {
 	tcph = (struct tcphdr *)packet;
 	printf("TCP SRC port %d \n", ntohs(tcph->th_sport));
 	printf("TCP DST port %d \n", ntohs(tcph->th_dport));
-
-	return tcph->th_off*4;
+	return tcph->th_off;
 }
