@@ -1,7 +1,21 @@
 #include <pcap.h>
 #include <stdio.h>
-
+#include <stdint.h>
+#include <arpa/inet.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
+#include <net/ethernet.h>
 #define TCP 0x06
+#define IPv4 0x08
+
+typedef unsigned char BYTE;
+struct ip *iph;
+struct tcphdr *tcph;
+struct ethhdr *ehdr;
+
+int printMACaddr(const u_char* packet);
+int printIPaddr(const u_char* packet);
+int printTCPport(const u_char* packet);
 
 void usage() {
   printf("syntax: pcap_test <interface>\n");
@@ -22,45 +36,36 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  while (true) {
+  while (true){
     struct pcap_pkthdr* header;
     const u_char* packet;
     int res = pcap_next_ex(handle, &header, &packet);
     int i;
-	
+    int ismac;	
+    int iphdl;
+    int tphdl;
+    int dataoff;
     if (res == 0) continue;
     if (res == -1 || res == -2) break;
-    if(packet[12] == 0x08 && packet[13] == 0x00 && packet[0x17] == TCP) {
-    	printf("MAC dst addr ");
-    	for(i=0; i<5; i++)
-    	printf("%02x:", packet[i]);
-    	printf("%02x", packet[5]);
-    	printf("\n");
-    	printf("MAC src addr ");
-    	for(i=6; i<11; i++)
-    	printf("%02x:", packet[i]);
-    	printf("%02x", packet[11]);
-    	printf("\n");
-
-	printf("IP src addr ");
-	for(i=0x1A; i<0x1D; i++)
-	printf("%d.", packet[i]);
-	printf("%d\n", packet[0x1D]);
-	printf("IP dst addr ");
-	for(i=0x1E; i<0x21; i++)
-	printf("%d.", packet[i]);
-	printf("%d\n", packet[0x21]);
-
-	printf("Port src ");
-	printf("%d\n", packet[0x22]*0x100 + packet[0x23]);
-	printf("Port dst ");
-	printf("%d\n", packet[0x24]*0x100 + packet[0x25]);
-	int datalen = (int)header->caplen - (int)((packet[0x0e]%16)*4) - (int)(packet[0x2e]/16*4);
-	if(datalen >= 46) {
-	    printf("Data ");
-	    for(i=1; i<=4; i++)
-                printf("%02x ", packet[0x21+(packet[0x2e]/16)*4+i]);
-	    printf("\n");
+    ismac = printMACaddr(packet);
+    if(ismac == 1) {
+    	packet = packet + 14;
+    	iphdl = printIPaddr(packet);
+	dataoff = iph->ip_len;
+	dataoff = ntohs(dataoff);
+	dataoff -= iphdl*4;
+	printf("%d", dataoff);
+	if(iphdl != 0) {
+		packet += iphdl*4;
+		tphdl = printTCPport(packet);
+		dataoff -= tphdl;
+		printf("%02x\n", dataoff);
+		if(dataoff > 0) {
+			packet += dataoff;
+			printf("DATA ");
+			for(i=0; i<15; i++)
+			printf("%02x ", packet[i]);
+		}
 	}
     }
     printf("%u bytes captured\n", header->caplen);
@@ -69,4 +74,41 @@ int main(int argc, char* argv[]) {
 
   pcap_close(handle);
   return 0;
+}
+
+int printMACaddr(const u_char* packet) {
+	ehdr = (struct ethhdr *)packet;
+	int i;
+	printf("MAC SRC Addr ");
+	for(i=0; i<5; i++)
+		printf("%02x:", ehdr->h_source[i]);
+	printf("%02x\n", ehdr->h_source[5]);
+
+	printf("MAC DST Addr ");
+	for(i=0; i<5; i++)
+		printf("%02x:", ehdr->h_dest[i]);
+	printf("%02x\n", ehdr->h_dest[5]);
+
+
+	if(ntohs(ehdr->h_proto)==0x0800) 
+		return 1;
+	return 0;
+}
+
+int printIPaddr(const u_char* packet) {
+	iph = (struct ip *)packet;
+	printf("IP SRC addr %s \n", inet_ntoa(iph->ip_src));
+	printf("IP DST addr %s \n", inet_ntoa(iph->ip_dst));
+
+	if(iph->ip_p == IPPROTO_TCP)
+		return iph->ip_hl;
+	return 0;
+}
+
+int printTCPport(const u_char* packet) {
+	tcph = (struct tcphdr *)packet;
+	printf("TCP SRC port %d \n", ntohs(tcph->th_sport));
+	printf("TCP DST port %d \n", ntohs(tcph->th_dport));
+
+	return tcph->th_off*4;
 }
