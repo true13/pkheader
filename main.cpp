@@ -58,7 +58,6 @@ int main(int argc, char* argv[]) {
 		packet += iphdl*4;
 		tphdl = printTCPport(packet);
 		datalen -= tphdl*4;
-		printf("%02x %02x\n", tphdl, datalen);
 		if(datalen > 0) {
 			packet += tphdl*4;
 			printf("DATA ");
