@@ -61,8 +61,14 @@ int main(int argc, char* argv[]) {
 		if(datalen > 0) {
 			packet += tphdl*4;
 			printf("DATA ");
-			for(i=0; i<15; i++)
-			printf("%02x ", packet[i]);
+			if(datalen < 16) {
+				for(i=0; i<datalen-1; i++)
+				printf("%02x ", packet[i]);
+			}
+			else {
+				for(i=0; i<15; i++)
+				printf("%02x ", packet[i]);
+			}
 		}
 	}
     }
